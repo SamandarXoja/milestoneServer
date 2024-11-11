@@ -99,22 +99,51 @@ export const practiceAudio = async (req, res) => {
 }
 
 
+// Используем объект для хранения использованных ID
+let usedIds = {};
+
 export const checkAudio = async (req, res) => {
     try {
-        const { categories, sheet } = req.query;
+        const { categories, sheet } = req.query
 
-        // const results = await WordsTestSchema.find({ categories, sheet })
-        const results = await WordsTestSchema.aggregate([
-            {$match: {categories, sheet}},
-            {$sample: {size: 1}}
-        ])   
+        const userKey = `${categories}-${sheet}`;
 
-        res.status(200).json(results)
+
+        if (!usedIds[userKey]) {
+            usedIds[userKey] = new Set();
+        }
+        const allResults = await WordsTestSchema.aggregate([
+            { $match: { categories, sheet } }
+        ])
+
+        if (allResults.length === 0) {
+            return res.status(404).json({ message: "Данные не найдены" });
+        }
+
+        const remainingResults = allResults.filter(item => !usedIds[userKey].has(item._id.toString()));
+
+
+        if (remainingResults.length > 0) {
+            const randomIndex = Math.floor(Math.random() * remainingResults.length);
+            const result = remainingResults[randomIndex];
+
+            usedIds[userKey].add(result._id.toString());
+
+            return res.status(200).json(result);
+        } else {
+
+            usedIds[userKey].clear();
+
+            return res.status(200).json({ message: "Все данные были отправлены. Начинаем заново!" });
+        }
+
+
 
     } catch (err) {
         res.status(500).json({ message: "Ошибка при загрузке файла", err })
     }
-}
+};
+
 
 // export const getAllPractice = async (req, res) => {
 //     const practices = await PracticeXl.find()
